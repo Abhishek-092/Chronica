@@ -99,13 +99,13 @@ Chronica will implement its own lightweight version-control layer using C++.
 ### Example Commands
 
 ```bash
-chronica init
-chronica status
-chronica add <file>
-chronica commit -m "message"
-chronica log
-chronica branch <name>
-chronica checkout <branch>
-chronica diff
-chronica merge <branch>
-chronica cherry-pick <commit>
+ron init
+ron status
+ron add <file>
+ron commit -m "message"
+ron log
+ron branch <name>
+ron checkout <branch>
+ron diff
+ron merge <branch>
+ron cherry-pick <commit>
