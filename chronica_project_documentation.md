@@ -1,15 +1,5 @@
 # CHRONICA: VERSION CONTROL MERGE OPTIMIZER USING LONGEST COMMON SUBSEQUENCE
 
-**Created by:**
-* Abhishek Kumar Goswami – `25293916005`
-* Himanshu Singhal – `25293916042`
-* Manish Kumar Meena – `25293916056`
-
-**Contact:**
-* +91 9142585002
-* +91 9748800440
-* +91 7597543130
-
 ---
 
 ## 1. Introduction
@@ -285,15 +275,15 @@ This simulation does not modify the current working directory or commit state.
 Chronica implements a simplified version-control system around the merge engine.
 
 ### CLI Commands
-* `chronica init`
-* `chronica add`
-* `chronica commit`
-* `chronica status`
-* `chronica log`
-* `chronica branch`
-* `chronica checkout`
-* `chronica merge`
-* `chronica cherry-pick`
+* `ron init`
+* `ron add`
+* `ron commit`
+* `ron status`
+* `ron log`
+* `ron branch`
+* `ron checkout`
+* `ron merge`
+* `ron cherry-pick`
 
 Commits store project snapshots along with their parent commit links.
 
