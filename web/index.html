@@ -8,222 +8,280 @@
 </head>
 <body>
 
-    <!-- App Header -->
-    <header class="app-header">
-        <div class="brand-section">
-            <span class="brand-logo">Chronica</span>
-            <span class="badge-tag">LCS Merge Optimizer</span>
-            <span class="badge-tag" style="color: var(--text-muted); border-color: var(--border-subtle);">C++20 &amp; ES6 Core</span>
+    <!-- Main Header -->
+    <header class="top-header">
+        <div class="top-brand">
+            <span class="brand-mark">CHRONICA</span>
+            <span class="brand-title">Version Control Merge Optimizer</span>
+            <span class="badge badge-gray" style="font-family: var(--font-mono); font-size: 11px;">C++20 Engine &amp; Web Studio</span>
         </div>
-        <div class="header-actions">
-            <label for="scenario-select" style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Benchmark Scenario:</label>
-            <select id="scenario-select" class="repo-select" style="width: 320px;">
-                <option value="auth_config">Distributed Config &amp; Auth (Cases 1, 2, 4, 5)</option>
-                <option value="delete_vs_modify">Service Pricing Engine (Case 6: Delete vs Modify)</option>
-                <option value="independent_changes">Telemetry Pipeline (Case 3: Independent Auto-Combine)</option>
-            </select>
-        </div>
+        <nav class="top-nav">
+            <a class="nav-link active" data-page="repositories">My Repositories</a>
+        </nav>
     </header>
 
-    <!-- Master Layout -->
-    <div class="app-container">
-
-        <!-- Left Sidebar: Branching, Commit DAG, Files -->
-        <aside class="left-sidebar">
-            <!-- Branch Switcher -->
-            <div class="sidebar-section">
-                <div class="section-title">
-                    <span>Active Branch</span>
-                    <button id="btn-new-branch" class="btn" title="Create new branch">New Branch</button>
-                </div>
-                <div class="branch-control-row">
-                    <select id="current-branch-select" class="repo-select"></select>
-                </div>
+    <!-- Repository Context Subheader (Shown inside a repository) -->
+    <div id="repo-subheader-bar" class="repo-subheader" style="display: none;">
+        <div class="repo-title-bar">
+            <div class="repo-breadcrumbs">
+                <a href="#repositories">Repositories</a>
+                <span class="sep">/</span>
+                <span id="current-repo-name-label" class="active-name">cherry-pick-workbench</span>
+                <span id="current-repo-case-badge" class="badge badge-blue">Cherry-Pick</span>
             </div>
-
-            <!-- Commit DAG Visualizer -->
-            <div class="graph-container">
-                <div class="section-title" style="padding: 10px 12px 0 12px; margin-bottom: 0;">
-                    <span>Commit Graph (DAG)</span>
-                </div>
-                <div class="graph-viewport">
-                    <canvas id="commit-graph-canvas"></canvas>
-                </div>
-                <div id="commit-history-list" class="commit-list"></div>
+            <div style="display: flex; gap: 8px;">
+                <a href="#repositories" class="btn btn-sm">Switch Repository</a>
             </div>
+        </div>
 
-            <!-- Tracked Working Files -->
-            <div class="sidebar-section" style="flex: 0 0 auto;">
-                <div class="section-title">
-                    <span>Repository Files</span>
-                </div>
-                <div id="file-list-container" class="file-list-container"></div>
+        <div class="page-tabs">
+            <div class="tab-item active" data-tab="code">
+                <span>Code</span>
             </div>
-
-            <!-- Staging & Commit Control -->
-            <div class="sidebar-section" style="border-bottom: none;">
-                <div class="section-title">
-                    <span>New Commit</span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <input id="commit-msg-input" type="text" class="input-text" placeholder="Commit message..." />
-                    <button id="btn-create-commit" class="btn btn-primary">Stage &amp; Commit</button>
-                </div>
+            <div class="tab-item" data-tab="graph">
+                <span>Commit Graph</span>
+                <span id="tab-commits-count" class="pill-count">0</span>
             </div>
-        </aside>
-
-        <!-- Center Pane: Diff Viewer and Code Editor -->
-        <main class="center-pane">
-            <div class="editor-toolbar">
-                <div class="active-file-title">
-                    <span id="active-file-name">src/config.cpp</span>
-                </div>
-                <div class="toolbar-tabs">
-                    <button class="tab-btn active" data-view="three-way">3-Way Diff</button>
-                    <button class="tab-btn" data-view="unified">Unified Diff</button>
-                    <button class="tab-btn" data-view="editor">Merged / Editor</button>
-                </div>
+            <div class="tab-item" data-tab="merge">
+                <span>Merge Optimizer</span>
             </div>
-
-            <!-- 3-Way Split Diff View -->
-            <div id="three-way-diff-view" class="three-way-container">
-                <!-- Base Column -->
-                <div class="diff-column">
-                    <div class="column-header header-base">
-                        <span>Base (Ancestor)</span>
-                    </div>
-                    <div id="diff-col-base" class="diff-content-scroll"></div>
-                </div>
-
-                <!-- Current Column -->
-                <div class="diff-column">
-                    <div class="column-header header-current">
-                        <span>Current (HEAD)</span>
-                    </div>
-                    <div id="diff-col-current" class="diff-content-scroll"></div>
-                </div>
-
-                <!-- Incoming Column -->
-                <div class="diff-column">
-                    <div class="column-header header-incoming">
-                        <span>Incoming</span>
-                    </div>
-                    <div id="diff-col-incoming" class="diff-content-scroll"></div>
-                </div>
-            </div>
-
-            <!-- Merged View & Code Editor -->
-            <div id="code-editor-view" class="editor-container">
-                <div style="background-color: var(--bg-panel); border-bottom: 1px solid var(--border-subtle); padding: 6px 12px; display: flex; justify-content: flex-end;">
-                    <button id="btn-save-editor" class="btn btn-primary">Save to Working Tree</button>
-                </div>
-                <textarea id="code-editor-textarea" class="code-editor-area" spellcheck="false"></textarea>
-            </div>
-        </main>
-
-        <!-- Right Sidebar: Merge Inspector, Simulation & Conflict Explainer -->
-        <aside class="right-inspector">
-            <div class="inspector-header">
-                <span>Merge Inspector</span>
-            </div>
-
-            <div class="inspector-body">
-                <!-- Target Branch & Actions -->
-                <div class="card-box">
-                    <div class="card-box-title">
-                        <span>Branch Operations</span>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label for="incoming-branch-select" style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Incoming Target:</label>
-                        <select id="incoming-branch-select" class="repo-select"></select>
-                    </div>
-                    <div class="action-row" style="margin-top: 4px;">
-                        <button id="btn-simulate-merge" class="btn btn-accent" style="flex: 1;">Simulate Merge</button>
-                        <button id="btn-execute-merge" class="btn btn-primary" style="flex: 1;">Execute Merge</button>
-                    </div>
-                    <div style="margin-top: 4px;">
-                        <button id="btn-cherry-pick" class="btn" style="width: 100%;">Cherry-Pick Commit</button>
-                    </div>
-                </div>
-
-                <!-- Merge Simulation Report Box -->
-                <div class="card-box">
-                    <div class="card-box-title">
-                        <span>Merge Simulation Report</span>
-                        <span class="badge-tag">Dry Run</span>
-                    </div>
-
-                    <div class="sim-stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Common Base</span>
-                            <span id="sim-base-ref" class="stat-value val-blue">--</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Files Analyzed</span>
-                            <span id="sim-files-count" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Clean Merges</span>
-                            <span id="sim-clean-count" class="stat-value val-green">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Conflicts</span>
-                            <span id="sim-conflict-count" class="stat-value val-red">0</span>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 6px;">
-                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Classification Breakdown:</div>
-                        <table class="case-breakdown-table">
-                            <thead>
-                                <tr>
-                                    <th>Classification Case</th>
-                                    <th style="text-align: right;">Regions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="case-distribution-tbody">
-                                <tr><td colspan="2" style="color: var(--text-muted);">Run simulation to view distribution.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Conflict Explainer Cards -->
-                <div class="card-box" style="flex: 1; overflow-y: auto;">
-                    <div class="card-box-title">
-                        <span>Conflict Diagnostics</span>
-                    </div>
-                    <div id="conflict-cards-container" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                </div>
-            </div>
-        </aside>
-
-    </div>
-
-    <!-- Custom Edit Modal Dialog -->
-    <div id="custom-edit-modal" class="modal-overlay">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <span>Custom Conflict Resolution</span>
-                <span id="custom-edit-diag-id" class="badge-tag"></span>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 11px; color: var(--text-secondary);">
-                    Specify the exact replacement lines to be applied for this conflicting region.
-                </p>
-                <textarea id="custom-edit-textarea" class="code-editor-area" style="height: 180px; border: 1px solid var(--border-subtle);"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button id="btn-close-custom-edit" class="btn">Cancel</button>
-                <button id="btn-save-custom-edit" class="btn btn-primary">Apply Custom Content</button>
+            <div class="tab-item" data-tab="cherry-pick">
+                <span style="font-weight: 600;">Cherry-Pick Studio</span>
+                <span class="badge badge-blue" style="font-size: 10px; padding: 1px 6px;">Feature Focus</span>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notification Bar -->
-    <div id="toast-bar" class="toast-bar"></div>
+    <!-- Main Viewport containing distinct pages -->
+    <main class="main-viewport">
+
+        <!-- ========================================================= -->
+        <!-- PAGE 1: MY REPOSITORIES LANDING PAGE                      -->
+        <!-- ========================================================= -->
+        <section id="page-repositories" class="view-page active">
+            <div class="repo-catalog-header">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 4px;">My Repositories</h2>
+                    <p style="font-size: 13px; color: var(--text-muted);">
+                        Deterministic Three-Way Merge &amp; Version Control Benchmark Test Suites based on Longest Common Subsequence (LCS).
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input id="repo-search-input" type="text" class="input-text" placeholder="Find a repository..." style="width: 280px;" />
+                </div>
+            </div>
+
+            <div id="repo-catalog-container" class="repo-card-list">
+                <!-- Dynamically rendered repository cards -->
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PAGE 2: CODE & FILES VIEW                                 -->
+        <!-- ========================================================= -->
+        <section id="page-code" class="view-page">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label for="code-branch-selector" style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Branch:</label>
+                    <select id="code-branch-selector" class="select-box" style="font-family: var(--font-mono); min-width: 200px;"></select>
+                </div>
+                <div>
+                    <button id="btn-code-save-working" class="btn btn-primary btn-sm">Stage Working File</button>
+                </div>
+            </div>
+
+            <div class="file-view-container">
+                <aside class="file-tree-sidebar">
+                    <div class="file-tree-title">Tracked Files</div>
+                    <div id="code-file-tree" class="file-tree-list"></div>
+                </aside>
+                <div class="file-content-pane">
+                    <div class="file-top-bar">
+                        <span id="code-active-file-title">--</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">In-Memory Working Tree</span>
+                    </div>
+                    <textarea id="code-file-editor" class="code-textarea" spellcheck="false"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PAGE 3: COMMIT GRAPH (DAG)                                -->
+        <!-- ========================================================= -->
+        <section id="page-graph" class="view-page">
+            <div class="graph-container-card">
+                <div class="graph-header-bar">
+                    <span>Commit Graph History (DAG)</span>
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Branch lanes and parent topological hierarchy</span>
+                </div>
+                <div class="graph-scroll-area">
+                    <canvas id="dag-canvas"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PAGE 4: THREE-WAY MERGE OPTIMIZER                         -->
+        <!-- ========================================================= -->
+        <section id="page-merge" class="view-page">
+            <div class="merge-workspace">
+                <div class="merge-view-card">
+                    <div class="merge-card-header">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-weight: 600; font-size: 13px;">Merge Target:</span>
+                            <span id="merge-current-branch-label" class="badge badge-green" style="font-family: var(--font-mono);">main</span>
+                            <span style="font-size: 12px; color: var(--text-muted);">&larr;</span>
+                            <label for="merge-incoming-branch" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Incoming:</label>
+                            <select id="merge-incoming-branch" class="select-box" style="font-family: var(--font-mono);"></select>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="btn-run-merge-sim" class="btn btn-sm btn-action">Simulate (Dry Run)</button>
+                            <button id="btn-exec-merge" class="btn btn-sm btn-primary">Execute Merge</button>
+                        </div>
+                    </div>
+
+                    <div class="split-three-pane">
+                        <div class="split-col">
+                            <div class="split-col-title" style="color: var(--primary-blue);">Base (Ancestor)</div>
+                            <div id="split-base-lines" class="split-scroll-view"></div>
+                        </div>
+                        <div class="split-col">
+                            <div class="split-col-title" style="color: var(--diff-add-text);">Current (HEAD)</div>
+                            <div id="split-current-lines" class="split-scroll-view"></div>
+                        </div>
+                        <div class="split-col">
+                            <div class="split-col-title" style="color: #7e22ce;">Incoming</div>
+                            <div id="split-incoming-lines" class="split-scroll-view"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Merge Inspector & Diagnostics Sidebar -->
+                <aside class="merge-side-panel">
+                    <div class="side-box">
+                        <div class="side-box-title">
+                            <span>Dry-Run Simulation Metrics</span>
+                        </div>
+                        <div class="side-box-content">
+                            <div class="metrics-grid">
+                                <div class="metric-tile">
+                                    <div class="metric-lbl">Common Base</div>
+                                    <div id="sim-stat-ancestor" class="metric-val" style="color: var(--primary-blue);">--</div>
+                                </div>
+                                <div class="metric-tile">
+                                    <div class="metric-lbl">Files Evaluated</div>
+                                    <div id="sim-stat-files" class="metric-val">0</div>
+                                </div>
+                                <div class="metric-tile">
+                                    <div class="metric-lbl">Clean Merges</div>
+                                    <div id="sim-stat-clean" class="metric-val" style="color: var(--diff-add-text);">0</div>
+                                </div>
+                                <div class="metric-tile">
+                                    <div class="metric-lbl">Conflicts</div>
+                                    <div id="sim-stat-conflicts" class="metric-val" style="color: var(--diff-del-text);">0</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                                    Case Distribution Breakdown:
+                                </div>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tbody id="sim-cases-breakdown-body">
+                                        <tr><td style="color: var(--text-muted); font-size: 11px; padding: 4px;">Run simulation to view classification counts.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="side-box" style="flex: 1; display: flex; flex-direction: column;">
+                        <div class="side-box-title">
+                            <span>Conflict Explainer Diagnostics</span>
+                        </div>
+                        <div id="conflict-list-panel" class="side-box-content" style="flex: 1; overflow-y: auto;"></div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PAGE 5: CHERRY-PICK STUDIO (FIRST-CLASS DEDICATED WORKBENCH) -->
+        <!-- ========================================================= -->
+        <section id="page-cherry-pick" class="view-page">
+            <div class="cherry-pick-workbench">
+                <div class="cp-toolbar-card">
+                    <div class="cp-branch-selectors">
+                        <label for="cp-target-branch-select" style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Target Branch (Applying to):</label>
+                        <select id="cp-target-branch-select" class="select-box" style="font-family: var(--font-mono);"></select>
+
+                        <span style="color: var(--text-subtle);">&larr;</span>
+
+                        <label for="cp-source-branch-select" style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Source Branch (Picking from):</label>
+                        <select id="cp-source-branch-select" class="select-box" style="font-family: var(--font-mono);"></select>
+                    </div>
+
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btn-clear-cp-selection" class="btn btn-sm">Clear Selection</button>
+                        <button id="btn-apply-selected-cp" class="btn btn-sm btn-action" disabled>Cherry-Pick Selected (0)</button>
+                    </div>
+                </div>
+
+                <div class="cp-columns-layout">
+                    <!-- Commits Timeline / Selection Table -->
+                    <div class="cp-history-card">
+                        <div class="cp-card-top">
+                            <span>Available Commits</span>
+                            <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">
+                                Click checkbox for individual commits or click 'Range Select' to span from Commit A to Commit B
+                            </span>
+                        </div>
+                        <div id="cp-commit-rows-body" class="cp-list-table"></div>
+                    </div>
+
+                    <!-- Delta Preview Panel -->
+                    <div class="cp-delta-card">
+                        <div class="cp-card-top">
+                            <span>Commit Delta Inspector</span>
+                            <span id="cp-delta-target-hash" class="badge badge-gray" style="font-family: var(--font-mono); font-size: 11px;">--</span>
+                        </div>
+                        <div id="cp-delta-view-content" class="cp-delta-body">
+                            <div style="color: var(--text-muted); padding: 20px; text-align: center;">
+                                Select any commit from the left list to inspect its line-by-line diff.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Conflict Resolution Modal -->
+    <div id="custom-edit-modal-dialog" class="modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-head">
+                <span>Custom Conflict Resolution</span>
+                <span id="modal-conflict-label" class="badge badge-purple" style="font-family: var(--font-mono);"></span>
+            </div>
+            <div class="modal-content-area">
+                <p style="font-size: 12px; color: var(--text-muted);">
+                    Input the exact content to replace the conflicting region in the merged file.
+                </p>
+                <textarea id="modal-edit-textarea" class="code-textarea" style="height: 160px; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px;"></textarea>
+            </div>
+            <div class="modal-foot">
+                <button id="btn-cancel-custom-modal" class="btn btn-sm">Cancel</button>
+                <button id="btn-apply-custom-modal" class="btn btn-sm btn-primary">Apply Custom Content</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-msg" class="toast-msg"></div>
 
     <script src="js/chronica_core.js"></script>
+    <script src="js/chronica_catalog.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

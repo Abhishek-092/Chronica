@@ -801,6 +801,81 @@ class ChronicaRepository {
         return combinedResult;
     }
 
+    getCommitDelta(commitHash) {
+        const target = this.commits[commitHash];
+        if (!target) return null;
+
+        const baseHash = target.parents[0] || '';
+        const cBase = this.commits[baseHash];
+        const allFiles = new Set([...Object.keys(target.files), ...(cBase ? Object.keys(cBase.files) : [])]);
+
+        const delta = {
+            commitHash,
+            shortHash: commitHash.substring(0, 7),
+            message: target.message,
+            author: target.author,
+            timestamp: target.timestamp,
+            parentHash: baseHash,
+            files: []
+        };
+
+        for (const path of allFiles) {
+            const baseT = cBase && cBase.files[path] ? this.getBlob(cBase.files[path]) : '';
+            const incT = target.files[path] ? this.getBlob(target.files[path]) : '';
+
+            if (baseT === incT) continue;
+
+            const baseLines = LCSEngine.splitLines(baseT);
+            const incLines = LCSEngine.splitLines(incT);
+            const ops = LCSEngine.diff(baseLines, incLines);
+
+            let added = 0;
+            let deleted = 0;
+            for (const op of ops) {
+                if (op.type === 'INSERT') added++;
+                else if (op.type === 'DELETE') deleted++;
+            }
+
+            delta.files.push({
+                filePath: path,
+                added,
+                deleted,
+                ops,
+                baseText: baseT,
+                targetText: incT
+            });
+        }
+
+        return delta;
+    }
+
+    cherryPickBatch(commitHashes, fileResolutions = {}) {
+        const sortedCommits = commitHashes
+            .map(h => this.commits[h])
+            .filter(Boolean)
+            .sort((a, b) => a.timestamp - b.timestamp);
+
+        const applied = [];
+        for (const c of sortedCommits) {
+            const res = this.cherryPick(c.hash, fileResolutions);
+            if (res.hasConflicts) {
+                return {
+                    success: false,
+                    conflictingCommit: c.hash,
+                    appliedCount: applied.length,
+                    conflicts: res.conflicts
+                };
+            }
+            applied.push(c.hash);
+        }
+
+        return {
+            success: true,
+            appliedCount: applied.length,
+            appliedCommits: applied
+        };
+    }
+
     buildCommitGraph() {
         const nodes = [];
         const visited = new Set();

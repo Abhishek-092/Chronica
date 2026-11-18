@@ -168,18 +168,39 @@ Open `web/index.html` directly in any web browser without needing any server.
 
 ---
 
-## 5. Web UI Features
+## 5. Web UI & Multi-Page Architecture
 
-- **Left Panel**:
-  - Active branch switcher and branch creator.
-  - Interactive SVG/Canvas commit graph (DAG) showing branch lanes, parent connectors, and HEAD pointer.
-  - Tracked repository files with status badges (`M` modified, `A` added, `C` conflicting).
-  - Staging and commit control.
-- **Center Panel**:
-  - Three-way split diff viewer: Base (Ancestor), Current (Local HEAD), and Incoming (Target) columns with synchronized scrolling and line numbers.
-  - Unified diff view mode.
-  - Merged code editor with in-place resolution and working tree save capability.
-- **Right Inspector**:
-  - Incoming branch selector and action buttons ("Simulate Merge", "Execute Merge", "Cherry-Pick Commit").
-  - Dry-run merge simulation report showing common ancestor, file counts, and breakdown across Cases 1 to 6.
-  - Structured conflict cards with diagnostics, snippets, and one-click resolution actions ("Accept Current", "Accept Incoming", "Keep Base", "Custom Edit").
+The web interface provides an original, minimalist white developer-tool layout organized across dedicated pages:
+
+- **Landing Page: My Repositories (`#repositories`)**:
+  - Displays all 8 pre-configured benchmark repositories matching the project documentation cases:
+    1. `case-1-identical-regions`: Base retention for unchanged sections.
+    2. `case-2-single-branch-mod`: Auto-accepting unilateral branch modifications.
+    3. `case-3-independent-regions`: Auto-combining independent non-overlapping line ranges.
+    4. `case-4-identical-modifications`: Single-acceptance of identical edits on both branches.
+    5. `case-5-overlapping-differing`: Flagging conflicting modifications on same lines with structured diagnostics.
+    6. `case-6-delete-vs-modify`: Delete vs modify collision detection and structured diagnostics.
+    7. `case-7-multi-file-system`: Complex multi-file service benchmark.
+    8. `cherry-pick-workbench`: Dedicated workbench specifically designed for cherry-picking experiments.
+  - Search filter and direct action shortcuts ("Explore Code", "Cherry-Pick", "Merge").
+
+- **Page: Code & Files (`#repo/<id>/code`)**:
+  - Branch switcher and tree explorer.
+  - Source editor with working tree staging capability.
+
+- **Page: Commit Graph (`#repo/<id>/graph`)**:
+  - Full-screen visual commit DAG with branch lanes, parent connectors, and commit metadata.
+
+- **Page: Three-Way Merge Optimizer (`#repo/<id>/merge`)**:
+  - Synchronized three-way split diff viewer (Base Ancestor, Current HEAD, Incoming).
+  - Dry-run merge simulation report with Case 1 through Case 6 distribution metrics.
+  - Structured conflict explainer diagnostic cards with one-click resolution actions:
+    `[Accept Current]`, `[Accept Incoming]`, `[Keep Base]`, `[Custom Edit]`.
+
+- **Page: Cherry-Pick Studio (`#repo/<id>/cherry-pick`)**:
+  - Dedicated workbench focusing on cherry-picking operations:
+    - Target branch and source branch selection.
+    - Individual commit selection via checkboxes.
+    - Range commit selection: click start commit, click end commit to span all intermediate commits.
+    - Commit delta inspector showing line-by-line insertions, deletions, and unified diff preview before applying.
+    - Batch cherry-pick execution: applies selected commits in topological chronological order via three-way merge.
