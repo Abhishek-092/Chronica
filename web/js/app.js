@@ -1,4 +1,4 @@
-// Chronica Application Controller - Multi-Page Architecture
+// Chronica Application Controller - Interactive Multi-Page Architecture
 
 let currentRepoId = 'repo-cherry-pick-workbench';
 let repo = new ChronicaRepository();
@@ -8,12 +8,20 @@ let selectedIncomingBranch = '';
 let activeResolutions = {};
 let currentSimulationReport = null;
 
+// Graph inspection state
+let activeGraphCommitHash = '';
+let activeGraphDiffFile = '';
+
 // Cherry-pick state
 let cherryPickSelectedHashes = new Set();
 let cherryPickRangeStart = null;
+let cherryPickRangeEnd = null;
 let cherryPickSelectedBranch = '';
+let lastCheckedCommitIndex = -1;
 
-// Page Routing
+// -----------------------------------------------------------------
+// PAGE ROUTING
+// -----------------------------------------------------------------
 function navigateTo(hash) {
     if (!hash || hash === '#' || hash === '#repositories') {
         showPage('page-repositories');
@@ -90,6 +98,9 @@ function selectRepository(repoId, redirect = true) {
     currentSimulationReport = null;
     cherryPickSelectedHashes.clear();
     cherryPickRangeStart = null;
+    cherryPickRangeEnd = null;
+    activeGraphCommitHash = '';
+    activeGraphDiffFile = '';
 
     ChronicaCatalog.loadRepository(repoId, repo);
 
@@ -97,6 +108,7 @@ function selectRepository(repoId, redirect = true) {
     const meta = catalogList.find(c => c.id === repoId);
     if (meta) {
         selectedIncomingBranch = meta.targetBranch;
+        cherryPickSelectedBranch = meta.targetBranch;
     }
 
     const files = repo.list_files ? repo.list_files() : Object.keys(repo.workingTree);
@@ -119,11 +131,6 @@ function updateRepoSubheader() {
     if (caseBadge) {
         caseBadge.textContent = meta.caseType;
         caseBadge.className = `badge ${meta.badgeClass}`;
-    }
-
-    const branchCountEl = document.getElementById('tab-branches-count');
-    if (branchCountEl) {
-        branchCountEl.textContent = Object.keys(repo.branches).length;
     }
 
     const commitCountEl = document.getElementById('tab-commits-count');
@@ -175,17 +182,23 @@ function renderRepositoriesPage() {
             </div>
             <div style="display: flex; gap: 8px;">
                 <button class="btn btn-sm btn-action" data-id="${item.id}" data-page="code">Explore Code</button>
-                <button class="btn btn-sm" data-id="${item.id}" data-page="cherry-pick">Cherry-Pick</button>
+                <button class="btn btn-sm ${item.caseType === 'Cherry-Pick' ? 'btn-primary' : ''}" data-id="${item.id}" data-page="cherry-pick">Cherry-Pick Studio</button>
                 <button class="btn btn-sm" data-id="${item.id}" data-page="merge">Merge</button>
             </div>
         `;
 
         row.querySelectorAll('[data-id]').forEach(btn => {
-            btn.onclick = (e) => {
+            btn.onclick = () => {
                 const rId = btn.getAttribute('data-id');
                 const page = btn.getAttribute('data-page') || 'code';
                 currentRepoId = rId;
                 ChronicaCatalog.loadRepository(rId, repo);
+                const catalogList = ChronicaCatalog.getRepositoryList();
+                const m = catalogList.find(c => c.id === rId);
+                if (m) {
+                    selectedIncomingBranch = m.targetBranch;
+                    cherryPickSelectedBranch = m.targetBranch;
+                }
                 window.location.hash = `#repo/${rId}/${page}`;
             };
         });
@@ -266,21 +279,31 @@ function renderCodeView() {
 }
 
 // -----------------------------------------------------------------
-// PAGE 3: COMMIT GRAPH (DAG)
+// PAGE 3: COMMIT GRAPH (DAG) - INTERACTIVE WORKBENCH
 // -----------------------------------------------------------------
 function renderCommitGraph() {
     const canvas = document.getElementById('dag-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const nodes = repo.buildCommitGraph();
+    const rowsContainer = document.getElementById('graph-commit-rows-list');
+    const branchBadge = document.getElementById('graph-branch-badge');
+    if (!canvas || !rowsContainer) return;
 
-    const rowHeight = 44;
-    const laneWidth = 28;
+    if (branchBadge) {
+        branchBadge.textContent = repo.currentBranch;
+    }
+
+    const nodes = repo.buildCommitGraph();
+    if (!activeGraphCommitHash && nodes.length > 0) {
+        activeGraphCommitHash = repo.headCommit || nodes[0].hash;
+    }
+
+    const rowHeight = 48;
+    const laneWidth = 24;
     const padX = 24;
     const padY = 24;
 
-    canvas.width = 720;
-    canvas.height = Math.max(220, nodes.length * rowHeight + 40);
+    canvas.width = 220;
+    canvas.height = Math.max(240, nodes.length * rowHeight);
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const laneColors = ['#2563eb', '#10b981', '#7c3aed', '#d97706', '#dc2626'];
@@ -289,10 +312,10 @@ function renderCommitGraph() {
     nodes.forEach((n, idx) => {
         const x = padX + (n.lane * laneWidth);
         const y = padY + (idx * rowHeight);
-        positions[n.hash] = { x, y, lane: n.lane };
+        positions[n.hash] = { x, y, lane: n.lane, idx };
     });
 
-    // Draw connecting edges
+    // 1. Draw parent connection curves
     nodes.forEach(n => {
         const from = positions[n.hash];
         if (!from) return;
@@ -303,7 +326,7 @@ function renderCommitGraph() {
 
             ctx.beginPath();
             ctx.strokeStyle = laneColors[from.lane % laneColors.length];
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
 
             if (from.x === to.x) {
                 ctx.moveTo(from.x, from.y);
@@ -317,10 +340,21 @@ function renderCommitGraph() {
         });
     });
 
-    // Draw commit circles and labels
+    // 2. Draw commit nodes on canvas
     nodes.forEach(n => {
         const pos = positions[n.hash];
         const color = laneColors[n.lane % laneColors.length];
+        const isActive = (n.hash === activeGraphCommitHash);
+
+        if (isActive) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+            ctx.fill();
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
@@ -332,28 +366,224 @@ function renderCommitGraph() {
 
         if (n.isHead) {
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2);
-            ctx.strokeStyle = '#2563eb';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-        }
-
-        const textX = padX + ((Math.max(...nodes.map(node => node.lane)) + 1) * laneWidth) + 20;
-
-        ctx.font = '600 12px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#0f172a';
-        ctx.fillText(n.shortHash, textX, pos.y + 4);
-
-        ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        ctx.fillStyle = '#334155';
-        ctx.fillText(n.message, textX + 80, pos.y + 4);
-
-        if (n.branches && n.branches.length > 0) {
-            ctx.font = '11px "JetBrains Mono", monospace';
-            ctx.fillStyle = '#7c3aed';
-            ctx.fillText(`(${n.branches.join(', ')})`, textX + 440, pos.y + 4);
+            ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = '#2563eb';
+            ctx.fill();
         }
     });
+
+    // 3. Render synchronized interactive commit rows
+    rowsContainer.innerHTML = '';
+    nodes.forEach(n => {
+        const row = document.createElement('div');
+        row.className = `graph-commit-row ${n.hash === activeGraphCommitHash ? 'active' : ''}`;
+        row.setAttribute('data-hash', n.hash);
+
+        let branchTagsHtml = '';
+        if (n.branches && n.branches.length > 0) {
+            branchTagsHtml = n.branches.map(b => `<span class="badge ${b === repo.currentBranch ? 'badge-green' : 'badge-purple'}" style="font-size: 10px;">${b}</span>`).join(' ');
+        }
+        if (n.isHead) {
+            branchTagsHtml += ` <span class="badge badge-blue" style="font-size: 10px;">HEAD</span>`;
+        }
+
+        row.innerHTML = `
+            <div style="font-family: var(--font-mono); font-weight: 600; color: var(--primary-blue); width: 75px;">${n.shortHash}</div>
+            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(n.message)}</span>
+                    ${branchTagsHtml}
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">${n.author} · ${new Date(n.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-select-node" data-hash="${n.hash}">Inspect</button>
+            </div>
+        `;
+
+        row.onclick = () => {
+            activeGraphCommitHash = n.hash;
+            activeGraphDiffFile = '';
+            renderCommitGraph();
+        };
+
+        rowsContainer.appendChild(row);
+    });
+
+    // Canvas click selects closest node
+    canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clickY = e.clientY - rect.top;
+        const rowIdx = Math.floor((clickY - padY + (rowHeight / 2)) / rowHeight);
+        if (rowIdx >= 0 && rowIdx < nodes.length) {
+            activeGraphCommitHash = nodes[rowIdx].hash;
+            activeGraphDiffFile = '';
+            renderCommitGraph();
+        }
+    };
+
+    renderGraphCommitInspector();
+}
+
+function renderGraphCommitInspector() {
+    const container = document.getElementById('graph-inspector-content');
+    const shortLabel = document.getElementById('inspector-commit-short');
+    if (!container) return;
+
+    const c = repo.commits[activeGraphCommitHash];
+    if (!c) {
+        container.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 30px;">Select a commit from the graph to inspect details.</div>`;
+        return;
+    }
+
+    if (shortLabel) shortLabel.textContent = c.hash.substring(0, 7);
+
+    const delta = repo.getCommitDelta(c.hash);
+    const branchMap = {};
+    Object.entries(repo.branches).forEach(([bName, bHash]) => {
+        if (!branchMap[bHash]) branchMap[bHash] = [];
+        branchMap[bHash].push(bName);
+    });
+    const branchesAtCommit = branchMap[c.hash] || [];
+
+    let parentsHtml = 'None (root commit)';
+    if (c.parents.length > 0) {
+        parentsHtml = c.parents.map(p => `<a class="parent-jump-link" data-hash="${p}" style="color: var(--primary-blue); font-family: var(--font-mono); font-weight: 600; cursor: pointer;">${p.substring(0, 7)}</a>`).join(', ');
+    }
+
+    let filesHtml = '<div style="color: var(--text-muted); font-size: 12px;">No file modifications.</div>';
+    if (delta && delta.files.length > 0) {
+        if (!activeGraphDiffFile || !delta.files.some(f => f.filePath === activeGraphDiffFile)) {
+            activeGraphDiffFile = delta.files[0].filePath;
+        }
+
+        filesHtml = delta.files.map(f => `
+            <div class="file-item-entry ${f.filePath === activeGraphDiffFile ? 'active' : ''}" data-file="${f.filePath}">
+                <span>${f.filePath}</span>
+                <span>
+                    <span style="color: var(--diff-add-text); font-weight: 600;">+${f.added}</span>
+                    <span style="color: var(--diff-del-text); font-weight: 600;">-${f.deleted}</span>
+                </span>
+            </div>
+        `).join('');
+    }
+
+    // Build diff preview for active file in this commit
+    let diffViewHtml = '';
+    if (delta && activeGraphDiffFile) {
+        const fileDelta = delta.files.find(f => f.filePath === activeGraphDiffFile);
+        if (fileDelta) {
+            diffViewHtml = `
+                <div style="border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; margin-top: 10px;">
+                    <div style="padding: 6px 10px; background-color: var(--bg-subtle); border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 11px; font-family: var(--font-mono);">
+                        ${activeGraphDiffFile}
+                    </div>
+                    <div style="max-height: 200px; overflow: auto; padding: 8px; font-family: var(--font-mono); font-size: 11px; background-color: #ffffff;">
+            `;
+            fileDelta.ops.forEach(op => {
+                let bg = '#ffffff';
+                let sign = ' ';
+                if (op.type === 'INSERT') { bg = 'var(--diff-add-bg)'; sign = '+'; }
+                else if (op.type === 'DELETE') { bg = 'var(--diff-del-bg)'; sign = '-'; }
+                diffViewHtml += `<div style="background-color: ${bg}; white-space: pre;">${sign} ${escapeHtml(op.line)}</div>`;
+            });
+            diffViewHtml += `</div></div>`;
+        }
+    }
+
+    container.innerHTML = `
+        <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+            <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">${escapeHtml(c.message)}</div>
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
+                <div>Author: <strong>${c.author}</strong></div>
+                <div>Date: ${new Date(c.timestamp).toLocaleString()}</div>
+                <div>Hash: <span style="font-family: var(--font-mono); font-size: 11px;">${c.hash}</span></div>
+                <div>Parents: ${parentsHtml}</div>
+                <div>Branches: ${branchesAtCommit.length > 0 ? branchesAtCommit.map(b => `<span class="badge badge-purple">${b}</span>`).join(' ') : 'None'}</div>
+            </div>
+        </div>
+
+        <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Commit Actions:</div>
+            <div class="graph-actions-grid">
+                <button id="btn-graph-checkout" class="btn btn-sm">Checkout Commit</button>
+                <button id="btn-graph-cherry-pick" class="btn btn-sm btn-action">Cherry-Pick to HEAD</button>
+                <button id="btn-graph-set-start" class="btn btn-sm">Set Range Start</button>
+                <button id="btn-graph-set-end" class="btn btn-sm">Set Range End</button>
+            </div>
+        </div>
+
+        <div style="flex: 1; display: flex; flex-direction: column;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Modified Files (${delta ? delta.files.length : 0}):</div>
+            <div style="border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden;">
+                ${filesHtml}
+            </div>
+            ${diffViewHtml}
+        </div>
+    `;
+
+    // Click parent hash jumps to parent
+    container.querySelectorAll('.parent-jump-link').forEach(link => {
+        link.onclick = () => {
+            activeGraphCommitHash = link.getAttribute('data-hash');
+            activeGraphDiffFile = '';
+            renderCommitGraph();
+        };
+    });
+
+    // File click switches diff view
+    container.querySelectorAll('.file-item-entry[data-file]').forEach(el => {
+        el.onclick = () => {
+            activeGraphDiffFile = el.getAttribute('data-file');
+            renderGraphCommitInspector();
+        };
+    });
+
+    // Action button clicks
+    const btnCheckout = document.getElementById('btn-graph-checkout');
+    if (btnCheckout) {
+        btnCheckout.onclick = () => {
+            repo.checkout(c.hash);
+            updateRepoSubheader();
+            renderCommitGraph();
+            showToast(`Checked out commit ${c.hash.substring(0, 7)}`);
+        };
+    }
+
+    const btnCP = document.getElementById('btn-graph-cherry-pick');
+    if (btnCP) {
+        btnCP.onclick = () => {
+            const res = repo.cherryPick(c.hash);
+            if (res.hasConflicts) {
+                showToast(`Conflict detected when cherry-picking ${c.hash.substring(0, 7)}. Switching to Merge Optimizer...`);
+                window.location.hash = `#repo/${currentRepoId}/merge`;
+            } else {
+                showToast(`Cherry-picked commit ${c.hash.substring(0, 7)} successfully!`);
+                updateRepoSubheader();
+                renderCommitGraph();
+            }
+        };
+    }
+
+    const btnSetStart = document.getElementById('btn-graph-set-start');
+    if (btnSetStart) {
+        btnSetStart.onclick = () => {
+            cherryPickRangeStart = c.hash;
+            cherryPickSelectedHashes.add(c.hash);
+            showToast(`Set ${c.hash.substring(0, 7)} as Cherry-Pick Range Start.`);
+            window.location.hash = `#repo/${currentRepoId}/cherry-pick`;
+        };
+    }
+
+    const btnSetEnd = document.getElementById('btn-graph-set-end');
+    if (btnSetEnd) {
+        btnSetEnd.onclick = () => {
+            cherryPickRangeEnd = c.hash;
+            cherryPickSelectedHashes.add(c.hash);
+            showToast(`Set ${c.hash.substring(0, 7)} as Cherry-Pick Range End.`);
+            window.location.hash = `#repo/${currentRepoId}/cherry-pick`;
+        };
+    }
 }
 
 // -----------------------------------------------------------------
@@ -641,15 +871,23 @@ function renderCherryPickStudio() {
     const targetSelect = document.getElementById('cp-target-branch-select');
     const sourceSelect = document.getElementById('cp-source-branch-select');
     const tableBody = document.getElementById('cp-commit-rows-body');
-    const deltaContainer = document.getElementById('cp-delta-view-content');
+    const rangeFromSelect = document.getElementById('cp-range-from-select');
+    const rangeToSelect = document.getElementById('cp-range-to-select');
 
-    if (!targetSelect || !sourceSelect || !tableBody || !deltaContainer) return;
+    if (!targetSelect || !sourceSelect || !tableBody) return;
 
     // Populate branches
     targetSelect.innerHTML = '';
     sourceSelect.innerHTML = '';
 
     const branches = Object.keys(repo.branches);
+    
+    // Default cherryPickSelectedBranch if invalid
+    if (!cherryPickSelectedBranch || !branches.includes(cherryPickSelectedBranch) || cherryPickSelectedBranch === repo.currentBranch) {
+        const other = branches.find(b => b !== repo.currentBranch);
+        cherryPickSelectedBranch = other || repo.currentBranch;
+    }
+
     branches.forEach(b => {
         const optT = document.createElement('option');
         optT.value = b;
@@ -660,15 +898,16 @@ function renderCherryPickStudio() {
         const optS = document.createElement('option');
         optS.value = b;
         optS.textContent = b;
-        if (b !== repo.currentBranch && (!cherryPickSelectedBranch || cherryPickSelectedBranch === b)) {
-            optS.selected = true;
-            cherryPickSelectedBranch = b;
-        }
+        if (b === cherryPickSelectedBranch) optS.selected = true;
         sourceSelect.appendChild(optS);
     });
 
     targetSelect.onchange = (e) => {
         repo.checkout(e.target.value);
+        if (cherryPickSelectedBranch === e.target.value) {
+            const other = branches.find(b => b !== e.target.value);
+            if (other) cherryPickSelectedBranch = other;
+        }
         updateRepoSubheader();
         renderCherryPickStudio();
     };
@@ -677,6 +916,8 @@ function renderCherryPickStudio() {
         cherryPickSelectedBranch = e.target.value;
         cherryPickSelectedHashes.clear();
         cherryPickRangeStart = null;
+        cherryPickRangeEnd = null;
+        lastCheckedCommitIndex = -1;
         renderCherryPickStudio();
     };
 
@@ -684,7 +925,7 @@ function renderCherryPickStudio() {
     const srcTip = repo.branches[cherryPickSelectedBranch] || cherryPickSelectedBranch;
     const history = repo.getHistory(srcTip, 50);
 
-    // Filter commits not yet on target branch
+    // Compute target branch ancestors to identify commits already on target
     const targetTip = repo.headCommit;
     const targetAncestors = new Set();
     const qT = [targetTip];
@@ -696,72 +937,122 @@ function renderCherryPickStudio() {
         if (c) c.parents.forEach(p => qT.push(p));
     }
 
+    // Populate Range From and Range To dropdowns
+    if (rangeFromSelect && rangeToSelect) {
+        rangeFromSelect.innerHTML = '';
+        rangeToSelect.innerHTML = '';
+
+        history.forEach((c) => {
+            const isUnmerged = !targetAncestors.has(c.hash);
+            const prefix = isUnmerged ? '' : '[Already on target] ';
+
+            const optF = document.createElement('option');
+            optF.value = c.hash;
+            optF.textContent = `${prefix}${c.hash.substring(0, 7)} - ${c.message.substring(0, 32)}`;
+            if (cherryPickRangeStart === c.hash) optF.selected = true;
+            rangeFromSelect.appendChild(optF);
+
+            const optT = document.createElement('option');
+            optT.value = c.hash;
+            optT.textContent = `${prefix}${c.hash.substring(0, 7)} - ${c.message.substring(0, 32)}`;
+            if (cherryPickRangeEnd === c.hash) optT.selected = true;
+            rangeToSelect.appendChild(optT);
+        });
+    }
+
     tableBody.innerHTML = '';
 
     if (history.length === 0) {
-        tableBody.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No commits found on source branch.</div>';
+        tableBody.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">No commits found on source branch.</div>';
+        updateCherryPickPlanAndActions(history);
         return;
     }
 
     history.forEach((c, idx) => {
         const isAlreadyOnTarget = targetAncestors.has(c.hash);
         const isSelected = cherryPickSelectedHashes.has(c.hash);
+        const isStart = (cherryPickRangeStart === c.hash);
+        const isEnd = (cherryPickRangeEnd === c.hash);
 
         const row = document.createElement('div');
         row.className = `cp-row ${isSelected ? 'selected' : ''}`;
         row.setAttribute('data-hash', c.hash);
 
+        let badgesHtml = '';
+        if (isAlreadyOnTarget) {
+            badgesHtml = '<span class="badge badge-gray">Already on target</span>';
+        } else {
+            if (isStart) badgesHtml += '<span class="badge cp-badge-start">RANGE START</span> ';
+            if (isEnd) badgesHtml += '<span class="badge cp-badge-end">RANGE END</span> ';
+            badgesHtml += `
+                <button class="btn btn-sm btn-set-start" data-hash="${c.hash}" title="Set as range start">Set Start</button>
+                <button class="btn btn-sm btn-set-end" data-hash="${c.hash}" title="Set as range end">Set End</button>
+            `;
+        }
+
         row.innerHTML = `
-            <input type="checkbox" class="cp-commit-check" data-hash="${c.hash}" ${isSelected ? 'checked' : ''} ${isAlreadyOnTarget ? 'disabled' : ''} />
-            <div style="font-family: var(--font-mono); font-weight: 600; color: var(--primary-blue); width: 80px;">${c.hash.substring(0, 7)}</div>
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="font-weight: 500; font-size: 13px;">${escapeHtml(c.message)}</div>
-                <div style="font-size: 11px; color: var(--text-muted);">${c.author} · ${new Date(c.timestamp).toLocaleTimeString()}</div>
+            <input type="checkbox" class="cp-commit-check" data-hash="${c.hash}" data-idx="${idx}" ${isSelected ? 'checked' : ''} ${isAlreadyOnTarget ? 'disabled' : ''} />
+            <div style="font-family: var(--font-mono); font-weight: 700; color: var(--primary-blue); width: 75px;">${c.hash.substring(0, 7)}</div>
+            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div style="font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(c.message)}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${c.author} · ${new Date(c.timestamp).toLocaleString()}</div>
             </div>
-            <div>
-                ${isAlreadyOnTarget ? '<span class="badge badge-gray">Already on target</span>' : '<button class="btn btn-sm btn-range-tag" data-hash="' + c.hash + '">Range Select</button>'}
+            <div style="display: flex; align-items: center; gap: 6px;">
+                ${badgesHtml}
             </div>
         `;
 
-        // Checkbox click
+        // Checkbox click with Shift-Click range support
         const chk = row.querySelector('.cp-commit-check');
-        chk.onchange = (e) => {
-            e.stopPropagation();
-            if (chk.checked) {
-                cherryPickSelectedHashes.add(c.hash);
-            } else {
-                cherryPickSelectedHashes.delete(c.hash);
-            }
-            updateCherryPickActionsCount();
-            inspectCommitDelta(c.hash);
-            renderCherryPickStudio();
-        };
-
-        // Range select click
-        const rangeBtn = row.querySelector('.btn-range-tag');
-        if (rangeBtn) {
-            rangeBtn.onclick = (e) => {
+        if (chk) {
+            chk.onclick = (e) => {
                 e.stopPropagation();
-                if (!cherryPickRangeStart) {
-                    cherryPickRangeStart = c.hash;
-                    cherryPickSelectedHashes.add(c.hash);
-                    showToast(`Range start set to ${c.hash.substring(0, 7)}. Select another commit to complete range.`);
-                } else {
-                    const startIdx = history.findIndex(h => h.hash === cherryPickRangeStart);
-                    const endIdx = idx;
-                    const minI = Math.min(startIdx, endIdx);
-                    const maxI = Math.max(startIdx, endIdx);
-
-                    for (let i = minI; i <= maxI; i++) {
+                if (e.shiftKey && lastCheckedCommitIndex !== -1) {
+                    const minIdx = Math.min(lastCheckedCommitIndex, idx);
+                    const maxIdx = Math.max(lastCheckedCommitIndex, idx);
+                    for (let i = minIdx; i <= maxIdx; i++) {
                         if (!targetAncestors.has(history[i].hash)) {
                             cherryPickSelectedHashes.add(history[i].hash);
                         }
                     }
-                    showToast(`Selected range of ${cherryPickSelectedHashes.size} commits.`);
-                    cherryPickRangeStart = null;
+                } else {
+                    if (chk.checked) {
+                        cherryPickSelectedHashes.add(c.hash);
+                    } else {
+                        cherryPickSelectedHashes.delete(c.hash);
+                    }
                 }
-                updateCherryPickActionsCount();
+                lastCheckedCommitIndex = idx;
+                updateCherryPickPlanAndActions(history);
                 inspectCommitDelta(c.hash);
+                renderCherryPickStudio();
+            };
+        }
+
+        // Set Start button
+        const btnStart = row.querySelector('.btn-set-start');
+        if (btnStart) {
+            btnStart.onclick = (e) => {
+                e.stopPropagation();
+                cherryPickRangeStart = c.hash;
+                cherryPickSelectedHashes.add(c.hash);
+                if (rangeFromSelect) rangeFromSelect.value = c.hash;
+                showToast(`Set ${c.hash.substring(0, 7)} as section start.`);
+                if (cherryPickRangeEnd) applySectionRangeSelection(history, targetAncestors);
+                renderCherryPickStudio();
+            };
+        }
+
+        // Set End button
+        const btnEnd = row.querySelector('.btn-set-end');
+        if (btnEnd) {
+            btnEnd.onclick = (e) => {
+                e.stopPropagation();
+                cherryPickRangeEnd = c.hash;
+                cherryPickSelectedHashes.add(c.hash);
+                if (rangeToSelect) rangeToSelect.value = c.hash;
+                showToast(`Set ${c.hash.substring(0, 7)} as section end.`);
+                if (cherryPickRangeStart) applySectionRangeSelection(history, targetAncestors);
                 renderCherryPickStudio();
             };
         }
@@ -774,7 +1065,7 @@ function renderCherryPickStudio() {
         tableBody.appendChild(row);
     });
 
-    updateCherryPickActionsCount();
+    updateCherryPickPlanAndActions(history);
 
     // Inspect first commit delta by default
     if (history.length > 0) {
@@ -783,13 +1074,89 @@ function renderCherryPickStudio() {
     }
 }
 
-function updateCherryPickActionsCount() {
+function applySectionRangeSelection(history, targetAncestors) {
+    if (!cherryPickRangeStart || !cherryPickRangeEnd) return;
+
+    const startIdx = history.findIndex(h => h.hash === cherryPickRangeStart);
+    const endIdx = history.findIndex(h => h.hash === cherryPickRangeEnd);
+
+    if (startIdx === -1 || endIdx === -1) return;
+
+    const minIdx = Math.min(startIdx, endIdx);
+    const maxIdx = Math.max(startIdx, endIdx);
+
+    cherryPickSelectedHashes.clear();
+    for (let i = minIdx; i <= maxIdx; i++) {
+        if (!targetAncestors.has(history[i].hash)) {
+            cherryPickSelectedHashes.add(history[i].hash);
+        }
+    }
+    showToast(`Selected section of ${cherryPickSelectedHashes.size} commit(s).`);
+}
+
+function updateCherryPickPlanAndActions(history) {
     const count = cherryPickSelectedHashes.size;
     const btn = document.getElementById('btn-apply-selected-cp');
+    const planCard = document.getElementById('cp-plan-summary-card');
+    const planTitle = document.getElementById('cp-plan-title');
+    const planDelta = document.getElementById('cp-plan-delta-stats');
+    const planSeq = document.getElementById('cp-plan-sequence');
+
     if (btn) {
-        btn.textContent = `Cherry-Pick Selected (${count})`;
+        btn.textContent = `Cherry-Pick Section (${count})`;
         btn.disabled = count === 0;
     }
+
+    if (!planCard || !planSeq) return;
+
+    if (count === 0) {
+        planCard.style.display = 'none';
+        return;
+    }
+
+    planCard.style.display = 'flex';
+
+    // Sort commits in topological order (ancestors applied first)
+    const selectedCommits = Array.from(cherryPickSelectedHashes)
+        .map(h => repo.commits[h])
+        .filter(Boolean)
+        .sort((a, b) => {
+            const da = repo.getCommitDepth(a.hash);
+            const db = repo.getCommitDepth(b.hash);
+            if (da !== db) return da - db;
+            return a.timestamp - b.timestamp;
+        });
+
+    if (planTitle) {
+        planTitle.textContent = `Section Execution Plan: ${selectedCommits.length} Commit(s) to Apply onto '${repo.currentBranch}'`;
+    }
+
+    let totalAdded = 0;
+    let totalDeleted = 0;
+    const touchedFiles = new Set();
+
+    selectedCommits.forEach(c => {
+        const delta = repo.getCommitDelta(c.hash);
+        if (delta) {
+            delta.files.forEach(f => {
+                totalAdded += f.added;
+                totalDeleted += f.deleted;
+                touchedFiles.add(f.filePath);
+            });
+        }
+    });
+
+    if (planDelta) {
+        planDelta.innerHTML = `
+            <span style="color: var(--diff-add-text);">+${totalAdded}</span> 
+            <span style="color: var(--diff-del-text);">-${totalDeleted}</span> across ${touchedFiles.size} file(s)
+        `;
+    }
+
+    planSeq.innerHTML = selectedCommits.map((c, i) => `
+        <span class="cp-sequence-badge">${i + 1}. ${c.hash.substring(0, 7)} (${escapeHtml(c.message.substring(0, 24))})</span>
+        ${i + 1 < selectedCommits.length ? '<span style="color: var(--text-muted);">&rarr;</span>' : ''}
+    `).join(' ');
 }
 
 function inspectCommitDelta(hash) {
@@ -822,7 +1189,7 @@ function inspectCommitDelta(hash) {
                         <span>${f.filePath}</span>
                         <span><span style="color: var(--diff-add-text);">+${f.added}</span> <span style="color: var(--diff-del-text);">-${f.deleted}</span></span>
                     </div>
-                    <div style="padding: 8px 10px; font-family: var(--font-mono); font-size: 11px; max-height: 180px; overflow-y: auto; background-color: #ffffff;">
+                    <div style="padding: 8px 10px; font-family: var(--font-mono); font-size: 11px; max-height: 220px; overflow-y: auto; background-color: #ffffff;">
             `;
 
             f.ops.forEach(op => {
@@ -854,13 +1221,32 @@ function executeSelectedCherryPick() {
     const hashes = Array.from(cherryPickSelectedHashes);
     const result = repo.cherryPickBatch(hashes, activeResolutions);
 
+    const alertBox = document.getElementById('cp-conflict-alert-box');
+    const alertContent = document.getElementById('cp-conflict-alert-content');
+
     if (!result.success) {
-        showToast(`Cherry-pick conflicted on commit ${result.conflictingCommit.substring(0, 7)}. Resolving via Merge Optimizer...`);
-        window.location.hash = `#repo/${currentRepoId}/merge`;
+        if (alertBox && alertContent) {
+            alertBox.style.display = 'block';
+            alertContent.innerHTML = `
+                <div style="font-size: 13px; font-weight: 600; color: #b91c1c; margin-bottom: 6px;">
+                    Conflict encountered on commit ${result.conflictingCommit.substring(0, 7)}!
+                </div>
+                <div style="font-size: 12px; color: var(--text-main); margin-bottom: 10px;">
+                    ${result.conflicts.map(c => `<div><strong>${c.filePath}</strong>: ${c.reason}</div>`).join('')}
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <a href="#repo/${currentRepoId}/merge" class="btn btn-sm btn-action">Open Three-Way Merge Optimizer to Resolve</a>
+                </div>
+            `;
+        }
+        showToast(`Cherry-pick conflicted on commit ${result.conflictingCommit.substring(0, 7)}.`);
     } else {
+        if (alertBox) alertBox.style.display = 'none';
         showToast(`Successfully cherry-picked ${result.appliedCount} commit(s) onto ${repo.currentBranch}!`);
         cherryPickSelectedHashes.clear();
         cherryPickRangeStart = null;
+        cherryPickRangeEnd = null;
+        lastCheckedCommitIndex = -1;
         updateRepoSubheader();
         renderCherryPickStudio();
     }
@@ -952,6 +1338,62 @@ window.addEventListener('DOMContentLoaded', () => {
         btnClearCP.onclick = () => {
             cherryPickSelectedHashes.clear();
             cherryPickRangeStart = null;
+            cherryPickRangeEnd = null;
+            lastCheckedCommitIndex = -1;
+            renderCherryPickStudio();
+        };
+    }
+
+    const btnSelectAllCP = document.getElementById('btn-select-all-cp');
+    if (btnSelectAllCP) {
+        btnSelectAllCP.onclick = () => {
+            const srcTip = repo.branches[cherryPickSelectedBranch] || cherryPickSelectedBranch;
+            const history = repo.getHistory(srcTip, 50);
+            const targetTip = repo.headCommit;
+            const targetAncestors = new Set();
+            const qT = [targetTip];
+            while (qT.length > 0) {
+                const cur = qT.shift();
+                if (!cur || targetAncestors.has(cur)) continue;
+                targetAncestors.add(cur);
+                const c = repo.commits[cur];
+                if (c) c.parents.forEach(p => qT.push(p));
+            }
+            history.forEach(c => {
+                if (!targetAncestors.has(c.hash)) {
+                    cherryPickSelectedHashes.add(c.hash);
+                }
+            });
+            showToast(`Selected all ${cherryPickSelectedHashes.size} available unmerged commits.`);
+            renderCherryPickStudio();
+        };
+    }
+
+    const btnApplyRangeSelect = document.getElementById('btn-apply-range-select');
+    if (btnApplyRangeSelect) {
+        btnApplyRangeSelect.onclick = () => {
+            const rangeFrom = document.getElementById('cp-range-from-select')?.value;
+            const rangeTo = document.getElementById('cp-range-to-select')?.value;
+            if (!rangeFrom || !rangeTo) {
+                showToast('Please select both From and To commits for the section.');
+                return;
+            }
+            cherryPickRangeStart = rangeFrom;
+            cherryPickRangeEnd = rangeTo;
+
+            const srcTip = repo.branches[cherryPickSelectedBranch] || cherryPickSelectedBranch;
+            const history = repo.getHistory(srcTip, 50);
+            const targetTip = repo.headCommit;
+            const targetAncestors = new Set();
+            const qT = [targetTip];
+            while (qT.length > 0) {
+                const cur = qT.shift();
+                if (!cur || targetAncestors.has(cur)) continue;
+                targetAncestors.add(cur);
+                const c = repo.commits[cur];
+                if (c) c.parents.forEach(p => qT.push(p));
+            }
+            applySectionRangeSelection(history, targetAncestors);
             renderCherryPickStudio();
         };
     }
