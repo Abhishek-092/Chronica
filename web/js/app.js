@@ -151,9 +151,9 @@ function renderRepositoriesPage() {
     const filterInput = document.getElementById('repo-search-input');
     const query = filterInput ? filterInput.value.toLowerCase().trim() : '';
 
-    const filtered = repos.filter(r => 
-        r.name.toLowerCase().includes(query) || 
-        r.title.toLowerCase().includes(query) || 
+    const filtered = repos.filter(r =>
+        r.name.toLowerCase().includes(query) ||
+        r.title.toLowerCase().includes(query) ||
         r.caseType.toLowerCase().includes(query)
     );
 
