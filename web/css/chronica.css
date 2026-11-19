@@ -455,32 +455,143 @@ main.main-viewport {
     color: var(--text-main);
 }
 
-/* Page: Commit DAG */
-.graph-container-card {
+/* Page: Commit DAG Interactive Workbench */
+.graph-view-split {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    min-height: 580px;
+}
+
+.graph-canvas-side {
+    flex: 1;
     border: 1px solid var(--border-color);
     border-radius: 6px;
     background: #ffffff;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
-    flex: 1;
+    overflow: hidden;
 }
 
-.graph-header-bar {
-    padding: 10px 16px;
-    background-color: var(--bg-subtle);
+.graph-interactive-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.graph-canvas-col {
+    width: 220px;
+    min-width: 200px;
+    background-color: #fafbfc;
+    border-right: 1px solid var(--border-color);
+    overflow: hidden;
+    position: relative;
+}
+
+.graph-rows-col {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #ffffff;
+}
+
+.graph-commit-row {
+    height: 48px;
+    padding: 0 16px;
     border-bottom: 1px solid var(--border-color);
-    font-size: 13px;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.graph-commit-row:hover {
+    background-color: var(--bg-subtle);
+}
+
+.graph-commit-row.active {
+    background-color: var(--primary-blue-bg);
+}
+
+.graph-inspector-panel {
+    width: 440px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.graph-inspector-body {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.graph-actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+/* Page: Cherry-Pick Studio Enhancements */
+.cp-section-bar {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: #ffffff;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
-.graph-scroll-area {
-    flex: 1;
-    overflow: auto;
-    padding: 20px;
+.cp-section-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cp-plan-card {
+    border: 1px solid #bfdbfe;
+    background-color: #eff6ff;
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cp-sequence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    background: #ffffff;
+    border: 1px solid #93c5fd;
+    border-radius: 4px;
+    color: var(--primary-blue);
+}
+
+.cp-badge-start {
+    background-color: #ecfdf5;
+    color: #047857;
+    border-color: #10b981;
+}
+
+.cp-badge-end {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border-color: #ef4444;
 }
 
 /* Page: Merge Optimizer & Split Diff */
