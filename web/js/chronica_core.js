@@ -849,11 +849,30 @@ class ChronicaRepository {
         return delta;
     }
 
+    getCommitDepth(hash) {
+        let depth = 0;
+        let cur = hash;
+        const visited = new Set();
+        while (cur && !visited.has(cur)) {
+            visited.add(cur);
+            const c = this.commits[cur];
+            if (!c || c.parents.length === 0) break;
+            depth++;
+            cur = c.parents[0];
+        }
+        return depth;
+    }
+
     cherryPickBatch(commitHashes, fileResolutions = {}) {
         const sortedCommits = commitHashes
             .map(h => this.commits[h])
             .filter(Boolean)
-            .sort((a, b) => a.timestamp - b.timestamp);
+            .sort((a, b) => {
+                const da = this.getCommitDepth(a.hash);
+                const db = this.getCommitDepth(b.hash);
+                if (da !== db) return da - db;
+                return a.timestamp - b.timestamp;
+            });
 
         const applied = [];
         for (const c of sortedCommits) {
@@ -863,6 +882,7 @@ class ChronicaRepository {
                     success: false,
                     conflictingCommit: c.hash,
                     appliedCount: applied.length,
+                    appliedCommits: applied,
                     conflicts: res.conflicts
                 };
             }
@@ -899,7 +919,7 @@ class ChronicaRepository {
             }
         }
 
-        allCommits.sort((a, b) => b.timestamp - a.timestamp);
+        allCommits.sort((a, b) => (this.getCommitDepth(b.hash) - this.getCommitDepth(a.hash)) || (b.timestamp - a.timestamp));
 
         const branchMap = {};
         for (const [bName, bHash] of Object.entries(this.branches)) {
