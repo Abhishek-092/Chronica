@@ -106,17 +106,42 @@
         </section>
 
         <!-- ========================================================= -->
-        <!-- PAGE 3: COMMIT GRAPH (DAG)                                -->
+        <!-- PAGE 3: COMMIT GRAPH (DAG) - INTERACTIVE WORKBENCH       -->
         <!-- ========================================================= -->
         <section id="page-graph" class="view-page">
-            <div class="graph-container-card">
-                <div class="graph-header-bar">
-                    <span>Commit Graph History (DAG)</span>
-                    <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Branch lanes and parent topological hierarchy</span>
+            <div class="graph-view-split">
+                <!-- Left: Interactive Canvas & Aligned Rows -->
+                <div class="graph-canvas-side">
+                    <div class="graph-header-bar">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span>Commit History DAG</span>
+                            <span id="graph-branch-badge" class="badge badge-green" style="font-family: var(--font-mono);">--</span>
+                        </div>
+                        <span style="font-size: 12px; color: var(--text-muted);">
+                            Click any node or commit row to inspect changes and perform actions
+                        </span>
+                    </div>
+
+                    <div class="graph-interactive-container">
+                        <div class="graph-canvas-col">
+                            <canvas id="dag-canvas"></canvas>
+                        </div>
+                        <div id="graph-commit-rows-list" class="graph-rows-col">
+                            <!-- Dynamic commit rows -->
+                        </div>
+                    </div>
                 </div>
-                <div class="graph-scroll-area">
-                    <canvas id="dag-canvas"></canvas>
-                </div>
+
+                <!-- Right: Active Commit Inspector Panel -->
+                <aside class="graph-inspector-panel">
+                    <div class="side-box-title">
+                        <span>Commit Inspector</span>
+                        <span id="inspector-commit-short" class="badge badge-gray" style="font-family: var(--font-mono);">--</span>
+                    </div>
+                    <div id="graph-inspector-content" class="graph-inspector-body">
+                        <!-- Populated by JS when selecting a commit -->
+                    </div>
+                </aside>
             </div>
         </section>
 
@@ -210,30 +235,67 @@
         <!-- ========================================================= -->
         <section id="page-cherry-pick" class="view-page">
             <div class="cherry-pick-workbench">
+                <!-- Branch Config Bar -->
                 <div class="cp-toolbar-card">
                     <div class="cp-branch-selectors">
                         <label for="cp-target-branch-select" style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Target Branch (Applying to):</label>
-                        <select id="cp-target-branch-select" class="select-box" style="font-family: var(--font-mono);"></select>
+                        <select id="cp-target-branch-select" class="select-box" style="font-family: var(--font-mono); font-weight: 600;"></select>
 
                         <span style="color: var(--text-subtle);">&larr;</span>
 
                         <label for="cp-source-branch-select" style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Source Branch (Picking from):</label>
-                        <select id="cp-source-branch-select" class="select-box" style="font-family: var(--font-mono);"></select>
+                        <select id="cp-source-branch-select" class="select-box" style="font-family: var(--font-mono); font-weight: 600;"></select>
                     </div>
 
                     <div style="display: flex; gap: 8px;">
-                        <button id="btn-clear-cp-selection" class="btn btn-sm">Clear Selection</button>
-                        <button id="btn-apply-selected-cp" class="btn btn-sm btn-action" disabled>Cherry-Pick Selected (0)</button>
+                        <button id="btn-apply-selected-cp" class="btn btn-action" disabled>Cherry-Pick Selected (0)</button>
                     </div>
                 </div>
 
+                <!-- Section / Range Picker Toolbar -->
+                <div class="cp-section-bar">
+                    <div class="cp-section-controls">
+                        <span style="font-size: 12px; font-weight: 600; color: var(--text-main); text-transform: uppercase;">Section Selector:</span>
+                        <label for="cp-range-from-select" style="font-size: 12px; color: var(--text-muted);">From:</label>
+                        <select id="cp-range-from-select" class="select-box" style="font-family: var(--font-mono); font-size: 12px;"></select>
+
+                        <label for="cp-range-to-select" style="font-size: 12px; color: var(--text-muted);">To:</label>
+                        <select id="cp-range-to-select" class="select-box" style="font-family: var(--font-mono); font-size: 12px;"></select>
+
+                        <button id="btn-apply-range-select" class="btn btn-sm btn-action">Select Section Range</button>
+                    </div>
+
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btn-select-all-cp" class="btn btn-sm">Select All Available</button>
+                        <button id="btn-clear-cp-selection" class="btn btn-sm">Clear Selection</button>
+                    </div>
+                </div>
+
+                <!-- Plan & Sequence Summary Card -->
+                <div id="cp-plan-summary-card" class="cp-plan-card" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 600; font-size: 13px; color: var(--primary-blue);" id="cp-plan-title">Section Selection Plan</span>
+                        <span id="cp-plan-delta-stats" style="font-family: var(--font-mono); font-size: 12px; font-weight: 600;"></span>
+                    </div>
+                    <div id="cp-plan-sequence" class="cp-sequence-flow"></div>
+                </div>
+
+                <!-- Conflict Explainer Alert in Cherry-Pick Studio (if conflict occurs) -->
+                <div id="cp-conflict-alert-box" class="side-box" style="display: none; border-color: #c297ff; background-color: #faf5ff;">
+                    <div class="side-box-title" style="background-color: #f3e8ff; color: #7e22ce;">
+                        <span>Cherry-Pick Conflict Detected</span>
+                    </div>
+                    <div class="side-box-content" id="cp-conflict-alert-content"></div>
+                </div>
+
+                <!-- Columns Layout: Commits Table & Delta Inspector -->
                 <div class="cp-columns-layout">
                     <!-- Commits Timeline / Selection Table -->
                     <div class="cp-history-card">
                         <div class="cp-card-top">
-                            <span>Available Commits</span>
+                            <span>Source Branch Commits</span>
                             <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">
-                                Click checkbox for individual commits or click 'Range Select' to span from Commit A to Commit B
+                                Click checkbox, Shift+click for range, or use 'Set Start' / 'Set End' buttons
                             </span>
                         </div>
                         <div id="cp-commit-rows-body" class="cp-list-table"></div>
