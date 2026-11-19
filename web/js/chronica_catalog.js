@@ -370,7 +370,9 @@ class ChronicaCatalog {
         r.createBranch('development');
         r.checkout('development');
 
-        // Series of discrete feature and fix commits on development
+        // Series of discrete feature and fix commits on development with distinct timestamps
+        const baseTime = Date.now() - 3600000;
+
         r.stageFile('utils/formatter.cpp',
             '// String Formatting Utility\n' +
             'std::string format_hex(uint64_t val) {\n' +
@@ -380,6 +382,7 @@ class ChronicaCatalog {
             '}\n'
         );
         r.commit('Commit-A: Add hex formatting utility helper');
+        if (r.commits[r.headCommit]) r.commits[r.headCommit].timestamp = baseTime + 60000;
 
         r.stageFile('core/engine.cpp',
             '// Core Engine Baseline\n' +
@@ -389,6 +392,7 @@ class ChronicaCatalog {
             '}\n'
         );
         r.commit('Commit-B: Critical bugfix - prevent buffer pool memory leak');
+        if (r.commits[r.headCommit]) r.commits[r.headCommit].timestamp = baseTime + 120000;
 
         r.stageFile('core/security.cpp',
             '// Security Protocol\n' +
@@ -398,6 +402,7 @@ class ChronicaCatalog {
             '}\n'
         );
         r.commit('Commit-C: Security patch - constant time authentication check');
+        if (r.commits[r.headCommit]) r.commits[r.headCommit].timestamp = baseTime + 180000;
 
         r.stageFile('core/json_fast.cpp',
             '// Experimental JSON parser\n' +
@@ -406,6 +411,7 @@ class ChronicaCatalog {
             '}\n'
         );
         r.commit('Commit-D: Experimental SIMD JSON parser');
+        if (r.commits[r.headCommit]) r.commits[r.headCommit].timestamp = baseTime + 240000;
 
         r.stageFile('core/engine.cpp',
             '// Core Engine Baseline\n' +
@@ -416,6 +422,7 @@ class ChronicaCatalog {
             '}\n'
         );
         r.commit('Commit-E: Add telemetry probes to worker threads');
+        if (r.commits[r.headCommit]) r.commits[r.headCommit].timestamp = baseTime + 300000;
 
         r.checkout('release/v1.0');
     }
